@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .message-box {
+            height: 300px;
+            border: 1px solid #ccc;
+            margin: 10px 0;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .message.sent {
+            color: #004085;
+        }
+        .message.received {
+            color: #383d41;
+        }
+        button {
+            margin: 0 5px;
+            padding: 5px 10px;
+        }
+        input {
+            padding: 5px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>WebSocket 测试</h2>
+        <div id="status" class="status disconnected">未连接</div>
+        <div class="message-box" id="messageBox"></div>
+        <div class="controls">
+            <input type="text" id="messageInput" placeholder="输入消息...">
+            <button id="sendBtn">发送</button>
+            <button id="connectBtn">连接</button>
+            <button id="disconnectBtn">断开</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import useWebsocket from './src/hooks/useWebsocket';
+
+        let ws = null;
+        const statusEl = document.getElementById('status');
+        const messageBoxEl = document.getElementById('messageBox');
+        const messageInputEl = document.getElementById('messageInput');
+        const sendBtnEl = document.getElementById('sendBtn');
+        const connectBtnEl = document.getElementById('connectBtn');
+        const disconnectBtnEl = document.getElementById('disconnectBtn');
+
+        function addMessage(message, type = 'received') {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            messageEl.textContent = message;
+            messageBoxEl.appendChild(messageEl);
+            messageBoxEl.scrollTop = messageBoxEl.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            statusEl.className = `status ${connected ? 'connected' : 'disconnected'}`;
+            statusEl.textContent = connected ? '已连接' : '未连接';
+            sendBtnEl.disabled = !connected;
+            connectBtnEl.disabled = connected;
+            disconnectBtnEl.disabled = !connected;
+        }
+
+        function connect() {
+            ws = useWebsocket({
+                url: '/ws', // 替换为你的WebSocket服务器地址
+                reconnectCfg: {
+                    enable: true,
+                    timeout: 3000
+                },
+                heartBeatInterval: 5000,
+                heartBeatMessage: 'ping',
+                onopen: () => {
+                    updateStatus(true);
+                    addMessage('连接已建立');
+                },
+                onclose: () => {
+                    updateStatus(false);
+                    addMessage('连接已关闭');
+                },
+                onerror: (error) => {
+                    addMessage(`错误: ${error.message}`);
+                },
+                onmessage: (event) => {
+                    if (event.data !== 'ping') { // 忽略心跳消息
+                        addMessage(`收到: ${event.data}`);
+                    }
+                }
+            });
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        // 事件监听
+        sendBtnEl.addEventListener('click', () => {
+            const message = messageInputEl.value.trim();
+            if (message && ws) {
+                ws.send(message);
+                addMessage(`发送: ${message}`, 'sent');
+                messageInputEl.value = '';
+            }
+        });
+
+        messageInputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtnEl.click();
+            }
+        });
+
+        connectBtnEl.addEventListener('click', connect);
+        disconnectBtnEl.addEventListener('click', disconnect);
+
+        // 初始状态
+        updateStatus(false);
+        sendBtnEl.disabled = true;
+        disconnectBtnEl.disabled = true;
+    </script>
+</body>
+</html> 
